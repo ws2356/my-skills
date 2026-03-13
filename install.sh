@@ -2,11 +2,16 @@
 set -euo pipefail
 
 agent_type=
+is_global=false
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --agent|-a)
       agent_type="$2"
       shift 2
+      ;;
+    --global|-g)
+      is_global=true
+      shift
       ;;
     *)
       echo "Unknown option: $1"
@@ -14,6 +19,15 @@ while [ "$#" -gt 0 ]; do
       ;;
   esac
 done
+
+project_root=
+if ! $is_global; then
+  project_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+fi
+if -z "$project_root" && ! $is_global; then
+  echo "Error: Not inside a git repository. Use --global to install globally."
+  exit 1
+fi
 
 if [[ -z "$agent_type" ]]; then
   agent_type="opencode claude gemini"
@@ -32,7 +46,14 @@ fi
 this_dir="$(dirname "$this_file")"
 
 for agent in "${agent_types[@]}"; do
-    TARGET_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/.${agent}/skills"
+    if $is_global; then
+        echo "Installing $agent skills globally"
+        TARGET_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/.${agent}/skills"
+    else
+        echo "Installing $agent skills for project at $project_root"
+        TARGET_DIR="$project_root/.${agent}/skills"
+    fi
+
     mkdir -p "$TARGET_DIR"
 
     for skill in "$this_dir/.opencode/skills"/*; do
